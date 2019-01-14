@@ -10,7 +10,7 @@ RE_SPACE = re.compile('\s')
 
 class PyPathError(Exception):
     def __init__(self, msg, pos, row, col):
-        Exception.__init__('%s at position: %d row: %d col: %d' % (msg, pos, row, col))
+        Exception.__init__(self, '{msg} at position: {pos} row: {row} col: {col}'.format(msg=msg, pos=pos, row=row, col=col))
     pass
 
 class TokenType(Enum):
@@ -40,6 +40,7 @@ class TokenType(Enum):
     LITERAL_INT = 'INT'
     LITERAL_FLOAT = 'FLOAT'
     LITERAL_BOOLEAN = 'BOOL'
+    QUOTE = '"'
     
     
 class Token(object):
@@ -64,7 +65,12 @@ class Token(object):
         return self.token_type in [TokenType.GROUP_SEPARATOR,
                                    TokenType.AND_SEPARATOR,
                                    TokenType.OR_SEPARATOR,
-                                   TokenType.PATH_SEPARATOR]  
+                                   TokenType.PATH_SEPARATOR] 
+    
+    def __str__(self):
+        if self.value:
+            return self.token_type.name+'('+str(self.value)+')'
+        return self.token_type.name+'()'
     
 class Tokeniser(object):
     def __init__(self, reader, **kw):
@@ -73,7 +79,7 @@ class Tokeniser(object):
         self.pos = 0
         self.row = 0
         self.col = 0
-        self.quote = kw.get('quote', '"')
+        self.quote = kw.get('quote', TokenType.QUOTE.value)
         self.escape = '\\'
         self.token_value = ''
         self.escaping = False
@@ -122,6 +128,14 @@ class Tokeniser(object):
         return None
     
     def tokenise_char(self, c):
+        self.pos += 1
+        self.col += 1
+        
+        if (c == '\n' and not self.in_quotes):
+            self.col = 0
+            self.row += 1
+            
+#        print ('pos: {pos} row: {row} col: {col} char:{char}'.format(pos=self.pos, row=self.row, col=self.col, char=c))
         
 #        print ('%s %s %s' % (self.last, c, self.peek))
         

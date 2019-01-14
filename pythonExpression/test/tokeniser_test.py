@@ -6,7 +6,7 @@ Created on 28 Dec 2018
 import unittest
 from utilities.readers import StringReader
 from expressions.pypath import tokeniser
-from expressions.pypath.tokeniser import Tokeniser
+from expressions.pypath.tokeniser import Tokeniser, TokenType
 
 
 class TestTokeniser(unittest.TestCase):
@@ -963,6 +963,16 @@ class TestTokeniser(unittest.TestCase):
         t = tkns.get_next_token()
         self.assertEqual(None, t)
         
+    def test_literal_string_2(self):
+        tkns = Tokeniser(StringReader(TokenType.QUOTE.value+'literal string'+TokenType.QUOTE.value))
+        t = tkns.get_next_token()
+        while t:
+            print(t)
+            t = tkns.get_next_token()
+            
+#        self.assertEqual(TokenType.WORD, t.token_type)
+#        self.assertEqual('aaa', t.value)
+
     def test_literal_number(self):
         tkns = Tokeniser(StringReader('123, 123.456' ))
         t = tkns.get_next_token()
@@ -997,7 +1007,42 @@ class TestTokeniser(unittest.TestCase):
         t = tkns.get_next_token()
         self.assertEqual(None, t)
         
+    def test_filter_in_path(self):
+        tkns = Tokeniser(StringReader('aaa.bbb[ccc>123].ddd'))
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.WORD, t.token_type)
+        self.assertEqual('aaa', t.value)
         
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.PATH_SEPARATOR, t.token_type)
+
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.WORD, t.token_type)
+        self.assertEqual('bbb', t.value)
+        
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.START_FILTER, t.token_type)
+
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.WORD, t.token_type)
+        self.assertEqual('ccc', t.value)
+        
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.COMPARATOR_GT, t.token_type)
+
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.LITERAL_INT, t.token_type)
+        self.assertEqual(123, t.value)
+        
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.END_FILTER, t.token_type)
+
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.PATH_SEPARATOR, t.token_type)
+
+        t = tkns.get_next_token()
+        self.assertEqual(TokenType.WORD, t.token_type)
+        self.assertEqual('ddd', t.value)
         
         
         

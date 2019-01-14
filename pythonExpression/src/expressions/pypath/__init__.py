@@ -4,24 +4,28 @@ Created on 28 Dec 2018
 @author: simon
 '''
 import re
-from expressions import *
+#from expressions import Path, Field, Equals, NotEquals, GreaterThan, GreaterThanOrEqual, LessThan, LessThanOrEqual, Add, Subtract, Divide, Multiply, Or, And, Group, Not, Literal, Parameter
+import expressions
 from enum import Enum
 from expressions.pypath.tokeniser import TokenType, PyPathError
 
 class GroupType(Enum):
     AND = 'AND'
     OR = 'OR'
-    PARAMS = 'PARAMS'
+    TUPLE = 'TUPLE'
     
 class ExpressionParser(object):
-    def __init__(self, tokeniser, reserved={}):
+    def __init__(self, tokeniser, reserved=None):
         self.tokeniser = tokeniser
         self.expression = None
-        self.reserved = reserved
+        if reserved:
+            self.reserved = reserved
+        else:
+            self.reserved = expressions.reserved_words
         self.word = None
         
     def is_reserved_word(self, word):
-        return word in self.reserved
+        return word.upper() in self.reserved
     
           
     def get_expression(self):
@@ -32,17 +36,17 @@ class ExpressionParser(object):
             comp = self.tokeniser.get_next_token()
             rhs = self.get_compound_expression()
             if comp.token_type == TokenType.COMPARATOR_EQUAL:
-                return Equals(lhs, rhs)
+                return expressions.Equals(lhs, rhs)
             elif comp.token_type == TokenType.COMPARATOR_NE:
-                return NotEquals(lhs, rhs)
+                return expressions.NotEquals(lhs, rhs)
             elif comp.token_type == TokenType.COMPARATOR_GT:
-                return GreaterThan(lhs, rhs)
+                return expressions.GreaterThan(lhs, rhs)
             elif comp.token_type == TokenType.COMPARATOR_GE:
-                return GreaterThanOrEqual(lhs, rhs)
+                return expressions.GreaterThanOrEqual(lhs, rhs)
             elif comp.token_type == TokenType.COMPARATOR_LT:
-                return LessThan(lhs, rhs)
+                return expressions.LessThan(lhs, rhs)
             elif comp.token_type == TokenType.COMPARATOR_LE:
-                return LessThanOrEqual(lhs, rhs)
+                return expressions.LessThanOrEqual(lhs, rhs)
             else:
                 raise PyPathError('Unexpected comparator: %s'%comp.token_type.value,
                                   self.tokeniser.pos,
@@ -58,13 +62,13 @@ class ExpressionParser(object):
             oper = self.tokeniser.get_next_token()
             rhs = self.get_base_expression()
             if oper.token_type == TokenType.OPERATOR_PLUS:
-                lhs = Add(lhs, rhs)
+                lhs = expressions.Add(lhs, rhs)
             elif oper.token_type == TokenType.OPERATOR_MINUS:
-                lhs = Subtract(lhs, rhs)
+                lhs = expressions.Subtract(lhs, rhs)
             elif oper.token_type == TokenType.OPERATOR_DIVIDE:
-                lhs = Divide(lhs, rhs)
+                lhs = expressions.Divide(lhs, rhs)
             elif oper.token_type == TokenType.OPERATOR_MULTIPLY:
-                lhs = Multiply(lhs, rhs)
+                lhs = expressions.Multiply(lhs, rhs)
             else:
                 raise PyPathError('Unexpected operator: %s'%oper.token_type.value,
                                   self.tokeniser.pos,
@@ -79,47 +83,11 @@ class ExpressionParser(object):
         
         while t:
             if t.token_type == TokenType.START_FILTER:
-                items = []
-                filter_type = ''
+                f = self.get_expression()
                 peek = self.tokeniser.peek_next_token()
-                while peek and peek.token_type not in [TokenType.AND_SEPARATOR,
-                                                   TokenType.OR_SEPARATOR,
-                                                   TokenType.END_FILTER]:
-                    items.append(self.get_expression())
-                    peek = self.tokeniser.peek_next_token()
-                    if peek.token_type in [TokenType.OR_SEPARATOR,
-                                           TokenType.AND_SEPARATOR]:
-                        if peek.token_type == TokenType.AND_SEPARATOR:
-                            if filter_type == '' or filter_type == 'AND':
-                                filter_type = 'AND'
-                            else:
-                                raise PyPathError('Ambiguous logical grouping: %s'%t.token_type.value,
-                                                  self.tokeniser.pos,
-                                                  self.tokeniser.row,
-                                                  self.tokeniser.col)
-                        else:
-                            if filter_type == '' or filter_type == 'OR':
-                                filter_type = 'OR'
-                            else:
-                                raise PyPathError('Ambiguous logical grouping: %s'%t.token_type.value,
-                                                  self.tokeniser.pos,
-                                                  self.tokeniser.row,
-                                                  self.tokeniser.col)
-                            
-                        self.tokeniser.get_next_token()
-                        peek = self.tokeniser.peek_next_token()
-                    elif peek.token_type != TokenType.END_FILTER:
-                        raise PyPathError('Unexpected token: %s'%t.token_type.value,
-                                          self.tokeniser.pos,
-                                          self.tokeniser.row,
-                                          self.tokeniser.col)
                 if peek.token_type == TokenType.END_FILTER:
                     self.tokeniser.get_next_token()
-                    if filter_type == 'OR':
-                        return Or(*items)
-                    else:
-                        return And(*items)
-                
+                    return expressions.Filter(f)
                 raise PyPathError('Unexpected token: %s'%t.token_type.value,
                                   self.tokeniser.pos,
                                   self.tokeniser.row,
@@ -133,22 +101,62 @@ class ExpressionParser(object):
             
             elif t.token_type == TokenType.START_GROUP:
                 items = []
+                group_type = None
                 peek = self.tokeniser.peek_next_token()
                 while peek and peek.token_type not in [TokenType.GROUP_SEPARATOR,
                                                    TokenType.END_GROUP]:
                     items.append(self.get_expression())
                     peek = self.tokeniser.peek_next_token()
                     if peek.token_type == TokenType.GROUP_SEPARATOR:
-                        self.tokeniser.get_next_token()
+                        t = self.tokeniser.get_next_token()
                         peek = self.tokeniser.peek_next_token()
+                        if not group_type:
+                            group_type = GroupType.TUPLE
+                        elif group_type != GroupType.TUPLE:
+                            raise PyPathError('Unexpected token: %s'%t.token_type.value,
+                                              self.tokeniser.pos,
+                                              self.tokeniser.row,
+                                              self.tokeniser.col)
+                    elif peek.token_type == TokenType.AND_SEPARATOR:
+                        t = self.tokeniser.get_next_token()
+                        peek = self.tokeniser.peek_next_token()
+                        if not group_type:
+                            group_type = GroupType.AND
+                        elif group_type != GroupType.AND:
+                            raise PyPathError('Unexpected token: %s'%t.token_type.value,
+                                              self.tokeniser.pos,
+                                              self.tokeniser.row,
+                                              self.tokeniser.col)
+                    elif peek.token_type == TokenType.OR_SEPARATOR:
+                        t = self.tokeniser.get_next_token()
+                        peek = self.tokeniser.peek_next_token()
+                        if not group_type:
+                            group_type = GroupType.OR
+                        elif group_type != GroupType.OR:
+                            raise PyPathError('Unexpected token: %s'%t.token_type.value,
+                                              self.tokeniser.pos,
+                                              self.tokeniser.row,
+                                              self.tokeniser.col)
                     elif peek.token_type != TokenType.END_GROUP:
                         raise PyPathError('Unexpected token: %s'%t.token_type.value,
                                           self.tokeniser.pos,
                                           self.tokeniser.row,
                                           self.tokeniser.col)
                 if peek.token_type == TokenType.END_GROUP:
-                    self.tokeniser.get_next_token()
-                    return Group(*items)
+                    t = self.tokeniser.get_next_token()
+                    if group_type:
+                        if group_type == GroupType.TUPLE:
+                            return expressions.Group(*items)
+                        if group_type == GroupType.AND:
+                            return expressions.And(*items)
+                        if group_type == GroupType.OR:
+                            return expressions.And(*items)
+                        raise PyPathError("Unknown group type %s"%group_type,
+                                              self.tokeniser.pos,
+                                              self.tokeniser.row,
+                                              self.tokeniser.col)
+                    else:
+                        return expressions.Group(*items)
                 
                 raise PyPathError('Unexpected token: %s'%t.token_type.value,
                                   self.tokeniser.pos,
@@ -163,7 +171,7 @@ class ExpressionParser(object):
             
             elif t.token_type == TokenType.NOT:
                 if exp == None:
-                    return Not(self.get_expression())
+                    return expressions.Not(self.get_expression())
                 else:
                     raise PyPathError("Excountered boolean value %s, expecting an operator, group separator or end of group/filter"%t.value, 
                                       self.tokeniser.pos,
@@ -190,7 +198,7 @@ class ExpressionParser(object):
             
             elif t.token_type == TokenType.LITERAL_BOOLEAN:
                 if exp == None:
-                    return Literal(t.value)
+                    return expressions.Literal(t.value)
                 else:
                     raise PyPathError("Excountered boolean value %s, expecting an operator, group separator or end of group/filter"%t.value, 
                                       self.tokeniser.pos,
@@ -199,7 +207,7 @@ class ExpressionParser(object):
                                      
             elif t.token_type == TokenType.LITERAL_INT:
                 if exp == None:
-                    return Literal(t.value)
+                    return expressions.Literal(t.value)
                 else:
                     raise PyPathError("Excountered integer value %d, expecting an operator, group separator or end of group/filter"%t.value, 
                                       self.tokeniser.pos,
@@ -208,7 +216,7 @@ class ExpressionParser(object):
                     
             elif t.token_type == TokenType.LITERAL_FLOAT:
                 if exp == None:
-                    return Literal(t.value)
+                    return expressions.Literal(t.value)
                 else:
                     raise PyPathError("Excountered float value %d, expecting an operator, group separator or end of group/filter"%t.value, 
                                       self.tokeniser.pos,
@@ -217,7 +225,7 @@ class ExpressionParser(object):
                     
             elif t.token_type == TokenType.LITERAL_STRING:
                 if exp == None:
-                    return Literal(t.value)
+                    return expressions.Literal(t.value)
                 else:
                     raise PyPathError("Excountered literal string '%s', expecting an operator, group separator or end of group/filter"%t.value, 
                                       self.tokeniser.pos,
@@ -226,7 +234,7 @@ class ExpressionParser(object):
                     
             elif t.token_type == TokenType.PARAMETER:
                 if exp == None:
-                    return Parameter(t.value)
+                    return expressions.Parameter(t.value)
                 else:
                     raise PyPathError("Excountered parameter '%s', expecting an operator, group separator or end of group/filter"%t.value, 
                                       self.tokeniser.pos,
@@ -235,39 +243,47 @@ class ExpressionParser(object):
                     
             elif t.token_type == TokenType.WORD:
                 if self.is_reserved_word(t.value):
+                    peek = self.tokeniser.peek_next_token()
+                    if peek.token_type == TokenType.START_GROUP:
+                        group = self.get_expression()
+                        return self.reserved[t.value.upper()].parse(group)
                     return None
                 else:
                     group_exp = None
                     peek = self.tokeniser.peek_next_token()
                     if peek and peek.token_type == TokenType.START_FILTER:
                         group_exp = self.get_expression()
-                    
+                     
                     peek = self.tokeniser.peek_next_token()
                     if peek and peek.token_type == TokenType.PATH_SEPARATOR:
                         self.tokeniser.get_next_token()
                         if exp == None:
                             if group_exp:
-                                exp = Field(t.value, group_exp)
+                                exp = expressions.Field(t.value, group_exp)
                             else:
-                                exp = Field(t.value)
+                                exp = expressions.Field(t.value)
                         else:
                             if group_exp:
-                                exp = Path(exp, t.value, group_exp)
+                                exp = expressions.Path(exp, t.value, group_exp)
                             else:
-                                exp = Path(exp, t.value)
+                                exp = expressions.Path(exp, t.value)
                         
                     else:
                         if exp == None:
                             if group_exp:
-                                return Field(t.value, group_exp)
+                                return expressions.Field(t.value, group_exp)
                             else:
-                                return Field(t.value)
+                                return expressions.Field(t.value)
                         else:
                             if group_exp:
-                                return Path(exp, t.value, group_exp)
+                                return expressions.Path(exp, t.value, group_exp)
                             else:
-                                return Path(exp, t.value)
+                                return expressions.Path(exp, t.value)
         
             t = self.tokeniser.get_next_token()
             peek = self.tokeniser.peek_next_token()
             
+            
+if __name__ == '__main__':
+    f = expressions.Field('aaa')
+    print(f.field)
