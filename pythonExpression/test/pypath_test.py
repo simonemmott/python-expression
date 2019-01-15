@@ -9,6 +9,25 @@ from expressions.pypath import ExpressionParser
 from expressions.pypath.tokeniser import Tokeniser
 from expressions import *
 
+import logging, logging.config
+NO_LOG = 9999999
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'formatters': {
+        'detailed': {'class': 'logging.Formatter', 'format': '%(levelname)-8s %(name)-35s %(funcName)-30s line:%(lineno)5d %(message)s'}
+    },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'detailed'}
+    },
+    'loggers': {
+        'root':                            {'level': 'WARN',   'handlers': ['console']},
+        'expressions':                     {'level': 'WARN',   'handlers': ['console']},
+        'expressions.pypath':              {'level': NO_LOG,  'handlers': ['console'], 'propagate': False},
+        'expressions.pypath.tokeniser':    {'level': NO_LOG,  'handlers': ['console'], 'propagate': False}
+    }
+}
+logging.config.dictConfig(LOGGING)
 
 class TestPyPath(unittest.TestCase):
 
@@ -66,6 +85,19 @@ class TestPyPath(unittest.TestCase):
         self.assertEqual('aaa', expr.path.path.field)
         self.assertEqual(None, expr.path.path.list_index)
         self.assertEqual(None, expr.path.path.list_filter)
+        
+    def test_parse_or(self):
+        p = ExpressionParser(Tokeniser(StringReader('(True|False)')))
+        exp = p.get_expression()
+        self.assertNotEqual(None, exp)
+        self.assertTrue(isinstance(exp, Or))
+        self.assertEqual(2, len(exp.items))
+        self.assertTrue(isinstance(exp.items[0], Literal))
+        self.assertEqual(True, exp.items[0].literal)
+        self.assertTrue(isinstance(exp.items[1], Literal))
+        self.assertEqual(False, exp.items[1].literal)
+        
+
         
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

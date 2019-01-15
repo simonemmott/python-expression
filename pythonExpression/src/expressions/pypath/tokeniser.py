@@ -6,6 +6,10 @@ Created on 31 Dec 2018
 from enum import Enum
 from utilities import numUtil
 import re
+import logging
+
+logger = logging.getLogger(__name__)
+
 RE_SPACE = re.compile('\s')
 
 class PyPathError(Exception):
@@ -103,9 +107,11 @@ class Tokeniser(object):
         
         
     def get_next_token(self):
+        logger.debug('get_next_token')
         if self.peek_token != None:
             peek = self.peek_token
             self.peek_token = None
+            logger.debug('next token: {token}'.format(token=peek))
             return peek
         
         if self.hold != None:

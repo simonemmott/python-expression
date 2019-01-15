@@ -1045,6 +1045,29 @@ class TestTokeniser(unittest.TestCase):
         self.assertEqual('ddd', t.value)
         
         
+    def test_or(self):
+        tkns = Tokeniser(StringReader('(True|False)'))
+        t = tkns.get_next_token()
+        self.assertEqual(tokeniser.TokenType.START_GROUP, t.token_type)
+        
+        t = tkns.get_next_token()
+        self.assertEqual(tokeniser.TokenType.LITERAL_BOOLEAN, t.token_type)
+        self.assertEqual(True, t.value)
+        
+        t = tkns.get_next_token()
+        self.assertEqual(tokeniser.TokenType.OR_SEPARATOR, t.token_type)
+        
+        t = tkns.get_next_token()
+        self.assertEqual(tokeniser.TokenType.LITERAL_BOOLEAN, t.token_type)
+        self.assertEqual(False, t.value)
+                
+        
+        t = tkns.get_next_token()
+        self.assertEqual(tokeniser.TokenType.END_GROUP, t.token_type)
+        
+        t = tkns.get_next_token()
+        self.assertEqual(None, t)
+        
         
 
 

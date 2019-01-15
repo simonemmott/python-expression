@@ -12,8 +12,26 @@ from expressions.pypath import *
 from expressions.pypath.tokeniser import *
 import json
 
-Q = TokenType.QUOTE.value
+import logging, logging.config
+NO_LOG = 9999999
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'formatters': {
+        'detailed': {'class': 'logging.Formatter', 'format': '%(levelname)-8s %(name)-35s %(funcName)-30s line: %(lineno)5d %(message)s'}
+    },
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'detailed'}
+    },
+    'loggers': {
+        'root':                            {'level': 'INFO',   'handlers': ['console']},
+        'expressions':                     {'level': 'DEBUG',  'handlers': ['console'], 'propagate': False},
+        'expressions.pypath':              {'level': NO_LOG,  'handlers': ['console'], 'propagate': False}
+    }
+}
+logging.config.dictConfig(LOGGING)
 
+Q = TokenType.QUOTE.value
 
 class TestField(unittest.TestCase):
 
@@ -513,6 +531,234 @@ class TestFilter(unittest.TestCase):
         self.assertEqual('name', expr.filter.lhs.field)
         self.assertTrue(isinstance(expr.filter.rhs, Parameter))
         self.assertEqual('name', expr.filter.rhs.parameter)
+        
+    
+class TestGroup(unittest.TestCase):
+
+    def test_evaluate(self):
+        g = Group(Literal(100), Literal(101))
+        self.assertEqual((100, 101), g.evaluate({}))      
+                
+        g = Group(Literal(100))
+        self.assertEqual((100,), g.evaluate({}))      
+                
+    def test_expression_to_path(self):
+        g = Group(Literal(100), Literal(101))
+        self.assertEqual('(100,101)', g.to_path())      
+        
+    def test_path_to_expression(self):
+        expr = ExpressionParser(Tokeniser(StringReader('(100,101)'))).get_expression()
+        self.assertTrue(isinstance(expr, Group))
+        self.assertEqual(2, len(expr.items))
+        self.assertTrue(isinstance(expr.items[0], Literal))
+        self.assertEqual(100, expr.items[0].literal)   
+        self.assertTrue(isinstance(expr.items[1], Literal))
+        self.assertEqual(101, expr.items[1].literal)   
+        
+    
+class TestAdd(unittest.TestCase):
+
+    def test_evaluate(self):
+        expr = Add(Literal(100), Literal(101))
+        self.assertEqual(201, expr.evaluate({}))      
+                
+        expr = Add(Literal(100))
+        self.assertEqual(100, expr.evaluate({}))      
+                
+    def test_expression_to_path(self):
+        expr = Add(Literal(100), Literal(101))
+        self.assertEqual('100+101', expr.to_path())      
+        
+    def test_path_to_expression(self):
+        expr = ExpressionParser(Tokeniser(StringReader('100+101'))).get_expression()
+        self.assertTrue(isinstance(expr, Add))
+        self.assertEqual(2, len(expr.items))
+        self.assertTrue(isinstance(expr.items[0], Literal))
+        self.assertEqual(100, expr.items[0].literal)   
+        self.assertTrue(isinstance(expr.items[1], Literal))
+        self.assertEqual(101, expr.items[1].literal)   
+        
+    
+class TestSubtract(unittest.TestCase):
+
+    def test_evaluate(self):
+        expr = Subtract(Literal(100), Literal(101))
+        self.assertEqual(-1, expr.evaluate({}))      
+                
+        expr = Subtract(Literal(100))
+        self.assertEqual(100, expr.evaluate({}))      
+                
+    def test_expression_to_path(self):
+        expr = Subtract(Literal(100), Literal(101))
+        self.assertEqual('100-101', expr.to_path())      
+                
+        expr = Subtract(Literal(100))
+        self.assertEqual('100', expr.to_path())      
+        
+    def test_path_to_expression(self):
+        expr = ExpressionParser(Tokeniser(StringReader('100-101'))).get_expression()
+        self.assertTrue(isinstance(expr, Subtract))
+        self.assertEqual(2, len(expr.items))
+        self.assertTrue(isinstance(expr.items[0], Literal))
+        self.assertEqual(100, expr.items[0].literal)   
+        self.assertTrue(isinstance(expr.items[1], Literal))
+        self.assertEqual(101, expr.items[1].literal)   
+        
+    
+class TestMultiply(unittest.TestCase):
+
+    def test_evaluate(self):
+        expr = Multiply(Literal(100), Literal(101))
+        self.assertEqual(10100, expr.evaluate({}))      
+                
+        expr = Multiply(Literal(100))
+        self.assertEqual(100, expr.evaluate({}))      
+                
+    def test_expression_to_path(self):
+        expr = Multiply(Literal(100), Literal(101))
+        self.assertEqual('100*101', expr.to_path())      
+                
+        expr = Multiply(Literal(100))
+        self.assertEqual('100', expr.to_path())      
+        
+    def test_path_to_expression(self):
+        expr = ExpressionParser(Tokeniser(StringReader('100*101'))).get_expression()
+        self.assertTrue(isinstance(expr, Multiply))
+        self.assertEqual(2, len(expr.items))
+        self.assertTrue(isinstance(expr.items[0], Literal))
+        self.assertEqual(100, expr.items[0].literal)   
+        self.assertTrue(isinstance(expr.items[1], Literal))
+        self.assertEqual(101, expr.items[1].literal)   
+        
+    
+class TestDivide(unittest.TestCase):
+
+    def test_evaluate(self):
+        expr = Divide(Literal(200), Literal(10))
+        self.assertEqual(20, expr.evaluate({}))      
+                
+        expr = Divide(Literal(100))
+        self.assertEqual(100, expr.evaluate({}))      
+                
+    def test_expression_to_path(self):
+        expr = Divide(Literal(100), Literal(101))
+        self.assertEqual('100/101', expr.to_path())      
+                
+        expr = Divide(Literal(100))
+        self.assertEqual('100', expr.to_path())      
+        
+    def test_path_to_expression(self):
+        expr = ExpressionParser(Tokeniser(StringReader('100/101'))).get_expression()
+        self.assertTrue(isinstance(expr, Divide))
+        self.assertEqual(2, len(expr.items))
+        self.assertTrue(isinstance(expr.items[0], Literal))
+        self.assertEqual(100, expr.items[0].literal)   
+        self.assertTrue(isinstance(expr.items[1], Literal))
+        self.assertEqual(101, expr.items[1].literal)   
+        
+    
+class TestConcatenate(unittest.TestCase):
+
+    def test_evaluate(self):
+        expr = Concatenate(Literal('aaa'), Literal(123))
+        self.assertEqual('aaa123', expr.evaluate({}))      
+                
+        expr = Concatenate(Literal('aaa'))
+        self.assertEqual('aaa', expr.evaluate({}))      
+                
+    def test_expression_to_path(self):
+        expr = Concatenate(Literal('aaa'), Literal(123))
+        self.assertEqual(' Concat("aaa",123)', expr.to_path())      
+                
+        expr = Concatenate(Literal('aaa'))
+        self.assertEqual(' Concat("aaa")', expr.to_path())      
+        
+    def test_path_to_expression(self):
+        expr = ExpressionParser(Tokeniser(StringReader('Concat("aaa",123)'))).get_expression()
+        self.assertTrue(isinstance(expr, Concatenate))
+        self.assertEqual(2, len(expr.items))
+        self.assertTrue(isinstance(expr.items[0], Literal))
+        self.assertEqual('aaa', expr.items[0].literal)   
+        self.assertTrue(isinstance(expr.items[1], Literal))
+        self.assertEqual(123, expr.items[1].literal)   
+        
+    
+class TestAnd(unittest.TestCase):
+
+    def test_evaluate(self):
+        expr = And(Literal(True), Literal(False))
+        self.assertEqual(False, expr.evaluate({}))      
+                
+        expr = And(Literal(True), Literal(True))
+        self.assertEqual(True, expr.evaluate({}))      
+                
+        expr = And(Literal(True))
+        self.assertEqual(True, expr.evaluate({}))      
+                
+    def test_expression_to_path(self):
+        expr = And(Literal(True), Literal(False))
+        self.assertEqual('(True&False)', expr.to_path())      
+                
+        expr = And(Literal(True))
+        self.assertEqual('(True)', expr.to_path())      
+        
+    def test_path_to_expression(self):
+        expr = ExpressionParser(Tokeniser(StringReader('(True&False)'))).get_expression()
+        self.assertTrue(isinstance(expr, And))
+        self.assertEqual(2, len(expr.items))
+        self.assertTrue(isinstance(expr.items[0], Literal))
+        self.assertEqual(True, expr.items[0].literal)   
+        self.assertTrue(isinstance(expr.items[1], Literal))
+        self.assertEqual(False, expr.items[1].literal)   
+      
+        
+class TestOr(unittest.TestCase):
+
+    def test_evaluate(self):
+        expr = Or(Literal(True), Literal(False))
+        self.assertEqual(True, expr.evaluate({}))      
+                
+        expr = Or(Literal(False), Literal(False))
+        self.assertEqual(False, expr.evaluate({}))      
+                
+        expr = Or(Literal(True))
+        self.assertEqual(True, expr.evaluate({}))      
+                
+    def test_expression_to_path(self):
+        expr = Or(Literal(True), Literal(False))
+        self.assertEqual('(True|False)', expr.to_path())      
+                
+        expr = Or(Literal(True))
+        self.assertEqual('(True)', expr.to_path())      
+        
+    def test_path_to_expression(self):
+        expr = ExpressionParser(Tokeniser(StringReader('(True|False)'))).get_expression()
+        self.assertTrue(isinstance(expr, Or))
+        self.assertEqual(2, len(expr.items))
+        self.assertTrue(isinstance(expr.items[0], Literal))
+        self.assertEqual(True, expr.items[0].literal)   
+        self.assertTrue(isinstance(expr.items[1], Literal))
+        self.assertEqual(False, expr.items[1].literal)   
+        
+    
+class TestNot(unittest.TestCase):
+
+    def test_evaluate(self):
+        expr = Not(Literal(True))
+        self.assertEqual(False, expr.evaluate({}))      
+                
+        expr = Not(Literal(False))
+        self.assertEqual(True, expr.evaluate({}))      
+                
+    def test_expression_to_path(self):
+        expr = Not(Literal(True))
+        self.assertEqual('!True', expr.to_path())      
+        
+    def test_path_to_expression(self):
+        expr = ExpressionParser(Tokeniser(StringReader('!True'))).get_expression()
+        self.assertTrue(isinstance(expr, Not))
+        self.assertTrue(isinstance(expr.predicate, Literal))
+        self.assertEqual(True, expr.predicate.literal)   
         
     
         

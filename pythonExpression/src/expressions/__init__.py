@@ -1,6 +1,9 @@
 from enum import Enum
 from expressions.pypath.tokeniser import TokenType
 from importlib.resources import path
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ExpressionError(Exception):
     pass
@@ -321,12 +324,11 @@ class Add(Group):
         return val
     
     def to_path(self):
-        path = TokenType.START_GROUP.value
+        path = ''
         for idx, item in enumerate(self.items):
             path = path + item.to_path()
             if idx < len(self.items)-1:
                 path = path + TokenType.OPERATOR_PLUS.value
-        path = path + TokenType.END_GROUP.value
         return path
     
 class Subtract(Group):
@@ -345,12 +347,11 @@ class Subtract(Group):
         return val
 
     def to_path(self):
-        path = TokenType.START_GROUP.value
+        path = ''
         for idx, item in enumerate(self.items):
             path = path + item.to_path()
             if idx < len(self.items)-1:
                 path = path +TokenType.OPERATOR_MINUS.value
-        path = path + TokenType.END_GROUP.value
         return path
     
         
@@ -370,12 +371,11 @@ class Multiply(Group):
         return val
 
     def to_path(self):
-        path = TokenType.START_GROUP.value
+        path = ''
         for idx, item in enumerate(self.items):
             path = path + item.to_path()
             if idx < len(self.items)-1:
                 path = path +TokenType.OPERATOR_MULTIPLY.value
-        path = path + TokenType.END_GROUP.value
         return path
     
         
@@ -397,22 +397,21 @@ class Divide(Group):
         return val
 
     def to_path(self):
-        path = TokenType.START_GROUP.value
+        path = ''
         for idx, item in enumerate(self.items):
             path = path + item.to_path()
             if idx < len(self.items)-1:
                 path = path +TokenType.OPERATOR_DIVIDE.value
-        path = path + TokenType.END_GROUP.value
         return path
     
-        
+@reserved_word('Concat')        
 class Concatenate(Group):
     def evaluate(self, src, **params):
         val = ''
         for item in self.items:
             item_val = item.evaluate(src, **params)
             if item_val:
-                val += item_val
+                val += str(item_val)
         return val
     
     def to_path(self):
@@ -423,6 +422,12 @@ class Concatenate(Group):
                 path = path +TokenType.GROUP_SEPARATOR.value
         path = path + TokenType.END_GROUP.value
         return path
+    
+    @staticmethod
+    def parse(group):
+        items = group.items
+        return Concatenate(*items)
+
     
 class And(Group):
     def evaluate(self, src, **params):
@@ -470,7 +475,7 @@ class Not(Expression):
         return not self.predicate.evaluate(src, **params)
     
     def to_path(self):
-        return TokenType.NOT+self.predicate.to_path()
+        return TokenType.NOT.value+self.predicate.to_path()
 
 
 
